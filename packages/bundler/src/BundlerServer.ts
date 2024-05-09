@@ -183,6 +183,9 @@ export class BundlerServer {
       case 'web3_clientVersion':
         result = this.methodHandler.clientVersion()
         break
+      case 'pm_sponsorUserOperation':
+        result = this.methodHandler.pmSponsorUserOperation(params[0])
+        break
       case 'debug_bundler_clearState':
         this.debugHandler.clearState()
         result = 'ok'

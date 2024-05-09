@@ -2,11 +2,11 @@ import fs from 'fs'
 
 import { Command } from 'commander'
 import {
-  deployEntryPoint,
+  deployEntryPoint, deployPaymaster,
   erc4337RuntimeVersion,
   IEntryPoint,
   RpcError,
-  supportsRpcMethod
+  supportsRpcMethod, VerifyingPaymaster
 } from '@account-abstraction/utils'
 import { ethers, Wallet, Signer } from 'ethers'
 
@@ -34,10 +34,12 @@ export let showStackTraces = false
 
 export async function connectContracts (
   wallet: Signer,
-  entryPointAddress: string): Promise<{ entryPoint: IEntryPoint }> {
+  entryPointAddress: string): Promise<{ entryPoint: IEntryPoint, paymaster: VerifyingPaymaster }> {
   const entryPoint = await deployEntryPoint(wallet.provider as any, wallet as any)
+  const paymaster = await deployPaymaster(wallet.provider as any, wallet as any)
   return {
-    entryPoint
+    entryPoint,
+    paymaster
   }
 }
 
@@ -109,9 +111,14 @@ export async function runBundler (argv: string[], overrideExit = true): Promise<
     } else {
       console.log('== debugrpc already st', config.debugRpc)
     }
+
     const ep = await deployEntryPoint(provider as any)
     const addr = ep.address
     console.log('deployed EntryPoint at', addr)
+    const pm = await deployPaymaster(provider as any, wallet as any)
+
+    console.log('deployed Paymaster at', pm.address)
+
     if ((await wallet.getBalance()).eq(0)) {
       console.log('=== testnet: fund signer')
       const signer = (provider as JsonRpcProvider).getSigner()
@@ -129,7 +136,8 @@ export async function runBundler (argv: string[], overrideExit = true): Promise<
   }
 
   const {
-    entryPoint
+    entryPoint,
+    paymaster
   } = await connectContracts(wallet, config.entryPoint)
 
   // bundleSize=1 replicate current immediate bundling mode
@@ -148,7 +156,8 @@ export async function runBundler (argv: string[], overrideExit = true): Promise<
     provider,
     wallet,
     config,
-    entryPoint
+    entryPoint,
+    paymaster
   )
   eventsManager.initEventListener()
   const debugHandler = config.debugRpc ?? false

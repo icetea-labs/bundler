@@ -116,6 +116,7 @@ export class ValidationManager {
     try {
       const provider = this.entryPoint.provider as JsonRpcProvider
       const simulationResult = await provider.send('eth_call', [tx, 'latest', stateOverride])
+
       const [res] = entryPointSimulations.decodeFunctionResult('simulateValidation', simulationResult) as ValidationResultStructOutput[]
 
       return this.parseValidationResult(userOp, res)
@@ -205,6 +206,7 @@ export class ValidationManager {
       hash: ''
     }
     let storageMap: StorageMap = {}
+
     if (!this.unsafe) {
       let tracerResult: BundlerTracerResult
       [res, tracerResult] = await this._geth_traceCall_SimulateValidation(userOp).catch(e => {

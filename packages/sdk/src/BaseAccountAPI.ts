@@ -4,7 +4,14 @@ import { Provider } from '@ethersproject/providers'
 import { TransactionDetailsForUserOp } from './TransactionDetailsForUserOp'
 import { defaultAbiCoder } from 'ethers/lib/utils'
 import { PaymasterAPI } from './PaymasterAPI'
-import { encodeUserOp, getUserOpHash, IEntryPoint, IEntryPoint__factory, UserOperation } from '@account-abstraction/utils'
+import {
+  encodeUserOp,
+  getUserOpHash,
+  IEntryPoint,
+  IEntryPoint__factory,
+  packPaymasterData,
+  UserOperation
+} from '@account-abstraction/utils'
 import { calcPreVerificationGas, GasOverheads } from './calcPreVerificationGas'
 
 export interface FactoryParams {
@@ -265,14 +272,15 @@ export abstract class BaseAccountAPI {
 
     if (this.paymasterAPI != null) {
       // fill (partial) preVerificationGas (all except the cost of the generated paymasterAndData)
-      const pmFields = await this.paymasterAPI.getTemporaryPaymasterData(partialUserOp)
+      const pmFields = await this.paymasterAPI.getPaymasterData(partialUserOp)
+      console.log('pmfields ne', pmFields)
       if (pmFields != null) {
         partialUserOp = {
           ...partialUserOp,
-          paymaster: pmFields?.paymaster,
-          paymasterPostOpGasLimit: pmFields?.paymasterPostOpGasLimit,
-          paymasterVerificationGasLimit: pmFields?.paymasterVerificationGasLimit,
-          paymasterData: pmFields?.paymasterData
+          paymaster: pmFields.paymaster,
+          paymasterVerificationGasLimit: 3e5,
+          paymasterPostOpGasLimit: 0,
+          paymasterData: pmFields.paymasterData
         } as any
       }
     }

@@ -20,7 +20,8 @@ module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
     // The 'tsconfig.packages.json' is needed to add not-compiled files to the project
-    project: ['./tsconfig.json', './tsconfig.packages.json']
+    project: ['./tsconfig.json', './tsconfig.packages.json'],
+    tsconfigRootDir: __dirname
   },
   ignorePatterns: [
     'dist/'

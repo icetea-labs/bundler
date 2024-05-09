@@ -16,6 +16,7 @@
   "scripts": {
     "bundler": "yarn --cwd packages/bundler bundler",
     "runop": "yarn --cwd packages/bundler runop",
+    "examples": "yarn --cwd packages/bundler examples",
     "runop-goerli": "yarn runop --network goerli --unsafe",
     "create-all-deps": "jq '.dependencies,.devDependencies' packages/*/package.json |sort  -u > all.deps",
     "depcheck": "lerna exec --no-bail --stream --parallel -- npx depcheck --ignores @account-abstraction/contracts,@openzeppelin/contracts,@uniswap/v3-periphery",

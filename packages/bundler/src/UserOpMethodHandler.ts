@@ -1,30 +1,34 @@
-import { BigNumber, BigNumberish, Signer } from 'ethers'
-import { JsonRpcProvider, Log, Provider } from '@ethersproject/providers'
+import {BigNumber, BigNumberish, Signer} from 'ethers'
+import {JsonRpcProvider, Log, Provider} from '@ethersproject/providers'
 
-import { BundlerConfig } from './BundlerConfig'
+import {BundlerConfig} from './BundlerConfig'
 import {
-  UserOperation,
+  AddressZero,
+  decodeRevertReason,
+  decodeSimulateHandleOpResult,
   deepHexlify,
   erc4337RuntimeVersion,
-  requireCond,
-  tostr,
-  requireAddressAndFields,
-  packUserOp,
-  PackedUserOperation,
-  unpackUserOp,
-  simulationRpcParams,
-  decodeSimulateHandleOpResult,
-  AddressZero,
-  ValidationErrors,
-  RpcError,
-  decodeRevertReason,
+  getUserOpHash,
+  IEntryPoint,
   mergeValidationDataValues,
-  UserOperationEventEvent, IEntryPoint
+  PackedUserOperation,
+  packUserOp,
+  requireAddressAndFields,
+  requireCond,
+  RpcError,
+  simulationRpcParams,
+  tostr,
+  unpackUserOp,
+  UserOperation,
+  UserOperationEventEvent,
+  ValidationErrors,
+  VerifyingPaymaster
 } from '@account-abstraction/utils'
-import { ExecutionManager } from './modules/ExecutionManager'
-import { UserOperationByHashResponse, UserOperationReceipt } from './RpcTypes'
-import { calcPreVerificationGas } from '@account-abstraction/sdk'
-import { EventFragment } from '@ethersproject/abi'
+import {ExecutionManager} from './modules/ExecutionManager'
+import {UserOperationByHashResponse, UserOperationReceipt} from './RpcTypes'
+import {calcPreVerificationGas} from '@account-abstraction/sdk'
+import {EventFragment} from '@ethersproject/abi'
+import {arrayify, defaultAbiCoder, hexConcat} from 'ethers/lib/utils'
 
 const HEX_REGEX = /^0x[a-fA-F\d]*$/i
 
@@ -62,7 +66,8 @@ export class UserOpMethodHandler {
     readonly provider: Provider,
     readonly signer: Signer,
     readonly config: BundlerConfig,
-    readonly entryPoint: IEntryPoint
+    readonly entryPoint: IEntryPoint,
+    readonly paymaster?: VerifyingPaymaster
   ) {
   }
 
@@ -265,5 +270,30 @@ export class UserOpMethodHandler {
   clientVersion (): string {
     // eslint-disable-next-line
     return 'aa-bundler/' + erc4337RuntimeVersion + (this.config.unsafe ? '/unsafe' : '')
+  }
+
+  async pmSponsorUserOperation (userOp: UserOperation): Promise<any> {
+    if (this.paymaster == null) throw new Error('Paymaster not deploy')
+    const MOCK_VALID_UNTIL = '0x00000000deadbeef'
+    const MOCK_VALID_AFTER = '0x0000000000001234'
+
+    userOp.paymaster = this.paymaster.address
+    const chainId = await this.provider.getNetwork().then(net => net.chainId)
+
+    const message = arrayify(getUserOpHash(userOp, this.entryPoint.address, chainId))
+    userOp.signature = await this.signer.signMessage(message)
+    console.log('packed user op ne', packUserOp(userOp))
+
+    const hash = await this.paymaster.getHash(
+      packUserOp(userOp), MOCK_VALID_UNTIL, MOCK_VALID_AFTER
+    )
+    const sig = await this.signer.signMessage(arrayify(hash as any))
+
+    return {
+      paymaster: this.paymaster.address,
+      paymasterVerificationGasLimit: 3e5,
+      paymasterPostOpGasLimit: 0,
+      paymasterData: hexConcat([defaultAbiCoder.encode(['uint48', 'uint48'], [MOCK_VALID_UNTIL, MOCK_VALID_AFTER]), sig])
+    }
   }
 }

@@ -14,13 +14,13 @@ import {
 } from '../src/types'
 import { ValidationManager, supportsDebugTraceCall } from '@account-abstraction/validation-manager'
 import {
-  deployEntryPoint,
+  deployEntryPoint, deployPaymaster,
   DeterministicDeployer,
   IEntryPoint,
   packUserOp,
   resolveHexlify,
   SimpleAccountFactory__factory,
-  UserOperation,
+  UserOperation, VerifyingPaymaster,
   waitFor
 } from '@account-abstraction/utils'
 import { UserOperationReceipt } from '../src/RpcTypes'
@@ -44,6 +44,7 @@ describe('UserOpMethodHandler', function () {
   let mempoolMgr: MempoolManager
 
   let entryPoint: IEntryPoint
+  let paymaster: VerifyingPaymaster
   let sampleRecipient: SampleRecipient
 
   before(async function () {
@@ -52,6 +53,7 @@ describe('UserOpMethodHandler', function () {
 
     signer = await createSigner()
     entryPoint = await deployEntryPoint(ethers.provider, ethers.provider.getSigner())
+    paymaster = await deployPaymaster(ethers.provider, signer as any)
 
     accountDeployerAddress = await DeterministicDeployer.deploy(new SimpleAccountFactory__factory(), 0, [entryPoint.address])
 
@@ -87,8 +89,26 @@ describe('UserOpMethodHandler', function () {
       provider,
       signer,
       config,
-      entryPoint
+      entryPoint,
+      paymaster
     )
+  })
+
+  describe('pm_sponsorUserOp', function () {
+    let owner: Wallet
+    let smartAccountAPI: SimpleAccountAPI
+    let target: string
+
+    it('return paymasterdata', async () => {
+      owner = Wallet.createRandom()
+      target = await Wallet.createRandom().getAddress()
+      smartAccountAPI = new SimpleAccountAPI({
+        provider,
+        entryPointAddress: entryPoint.address,
+        owner,
+        factoryAddress: accountDeployerAddress
+      })
+    })
   })
 
   describe('eth_supportedEntryPoints', function () {
