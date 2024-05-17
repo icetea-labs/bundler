@@ -11,228 +11,7 @@ import { parseEther, hexZeroPad, hexDataSlice } from 'ethers/lib/utils'
 import { EntryPoint__factory, EntryPointSimulations__factory } from '@account-abstraction/utils/dist/src/types'
 import EntryPointSimulationsJson from '@account-abstraction/contracts/artifacts/EntryPointSimulations.json'
 import { IEntryPoint__factory, SimpleAccount__factory } from '../types'
-const ERC20_ABI  = [
-  {
-      "constant": true,
-      "inputs": [],
-      "name": "name",
-      "outputs": [
-          {
-              "name": "",
-              "type": "string"
-          }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-  },
-  {
-      "constant": false,
-      "inputs": [
-          {
-              "name": "_spender",
-              "type": "address"
-          },
-          {
-              "name": "_value",
-              "type": "uint256"
-          }
-      ],
-      "name": "approve",
-      "outputs": [
-          {
-              "name": "",
-              "type": "bool"
-          }
-      ],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-  },
-  {
-      "constant": true,
-      "inputs": [],
-      "name": "totalSupply",
-      "outputs": [
-          {
-              "name": "",
-              "type": "uint256"
-          }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-  },
-  {
-      "constant": false,
-      "inputs": [
-          {
-              "name": "_from",
-              "type": "address"
-          },
-          {
-              "name": "_to",
-              "type": "address"
-          },
-          {
-              "name": "_value",
-              "type": "uint256"
-          }
-      ],
-      "name": "transferFrom",
-      "outputs": [
-          {
-              "name": "",
-              "type": "bool"
-          }
-      ],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-  },
-  {
-      "constant": true,
-      "inputs": [],
-      "name": "decimals",
-      "outputs": [
-          {
-              "name": "",
-              "type": "uint8"
-          }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-  },
-  {
-      "constant": true,
-      "inputs": [
-          {
-              "name": "_owner",
-              "type": "address"
-          }
-      ],
-      "name": "balanceOf",
-      "outputs": [
-          {
-              "name": "balance",
-              "type": "uint256"
-          }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-  },
-  {
-      "constant": true,
-      "inputs": [],
-      "name": "symbol",
-      "outputs": [
-          {
-              "name": "",
-              "type": "string"
-          }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-  },
-  {
-      "constant": false,
-      "inputs": [
-          {
-              "name": "_to",
-              "type": "address"
-          },
-          {
-              "name": "_value",
-              "type": "uint256"
-          }
-      ],
-      "name": "transfer",
-      "outputs": [
-          {
-              "name": "",
-              "type": "bool"
-          }
-      ],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-  },
-  {
-      "constant": true,
-      "inputs": [
-          {
-              "name": "_owner",
-              "type": "address"
-          },
-          {
-              "name": "_spender",
-              "type": "address"
-          }
-      ],
-      "name": "allowance",
-      "outputs": [
-          {
-              "name": "",
-              "type": "uint256"
-          }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-  },
-  {
-      "payable": true,
-      "stateMutability": "payable",
-      "type": "fallback"
-  },
-  {
-      "anonymous": false,
-      "inputs": [
-          {
-              "indexed": true,
-              "name": "owner",
-              "type": "address"
-          },
-          {
-              "indexed": true,
-              "name": "spender",
-              "type": "address"
-          },
-          {
-              "indexed": false,
-              "name": "value",
-              "type": "uint256"
-          }
-      ],
-      "name": "Approval",
-      "type": "event"
-  },
-  {
-      "anonymous": false,
-      "inputs": [
-          {
-              "indexed": true,
-              "name": "from",
-              "type": "address"
-          },
-          {
-              "indexed": true,
-              "name": "to",
-              "type": "address"
-          },
-          {
-              "indexed": false,
-              "name": "value",
-              "type": "uint256"
-          }
-      ],
-      "name": "Transfer",
-      "type": "event"
-  }
-]
+import erc20ABI from "./erc20abi.json"
 
 const MNEMONIC = 'test test test test test test test test test test test junk'
 const entryPointAddress = '0x0000000071727De22E5E9d8BAf0edAc6f37da032'
@@ -293,6 +72,7 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
   console.log('account contract balance before', await provider.getBalance(accountContract.address))
   console.log('owner contract balance before', await provider.getBalance(owner.address))
   console.log('dest balance before', await provider.getBalance(dest.address))
+  
   const op = await accountAPI.createSignedUserOp({
     target: dest.address,
     data: "0x",
@@ -311,13 +91,14 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
   console.log('account contract balance after', await provider.getBalance(accountContract.address))
   console.log('owner contract balance after', await provider.getBalance(owner.address))
   console.log('dest contract balance after', await provider.getBalance(dest.address))
+
   console.log('--- COMPLETE SENDING NATIVE TOKEN ---')
 }
 
 async function sendErc20(owner: ethers.Wallet, factoryAddress: string, paymasterAPI: PaymasterAPI) {
   const value = '1230' // Amount of the ERC-20 token to transfer
 
-  const erc20 = new ethers.Contract(token, ERC20_ABI, provider)
+  const erc20 = new ethers.Contract(token, erc20ABI, provider)
   const amount = ethers.utils.parseUnits(value)
   const dest = ethers.Wallet.createRandom()
 
@@ -339,10 +120,9 @@ async function sendErc20(owner: ethers.Wallet, factoryAddress: string, paymaster
   await signer.sendTransaction({ to: accountContract.address, value: parseEther('0.1') })
 
   console.log('onwer balance before', await owner.getBalance())
-  console.log('onwer contract balance before', await provider.getBalance(accountContract.address))
-
-  console.log('deployer erc20 balance before', await erc20.balanceOf(owner.address))
-  console.log('onwer erc20 balance before', await erc20.balanceOf(dest.address))
+  console.log('account contract balance before', await provider.getBalance(accountContract.address))
+  console.log('owner erc20 balance before', await erc20.balanceOf(owner.address))
+  console.log('dest erc20 balance before', await erc20.balanceOf(dest.address))
   
   const op = await accountAPI.createSignedUserOp({
     target: token,
@@ -359,11 +139,9 @@ async function sendErc20(owner: ethers.Wallet, factoryAddress: string, paymaster
   console.log(`Transaction hash: ${transactionHash}`)
 
   console.log('onwer balance after', await owner.getBalance())
-
-  console.log('onwer contract balance after', await provider.getBalance(accountContract.address))
-
+  console.log('account contract balance after', await provider.getBalance(accountContract.address))
   console.log('onwer erc20 balance after', await erc20.balanceOf(owner.address))
-  console.log('onwer erc20 balance after', await erc20.balanceOf(dest.address))
+  console.log('dest erc20 balance after', await erc20.balanceOf(dest.address))
 
   console.log('--- COMPLETE SENDING ERC20 TOKEN ---')
 }
