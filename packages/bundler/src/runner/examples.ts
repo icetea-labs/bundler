@@ -3,18 +3,245 @@ import { JsonRpcProvider, TransactionRequest } from '@ethersproject/providers'
 import { SimpleAccountAPI, PaymasterAPI, HttpRpcClient } from '@account-abstraction/sdk'
 import {
   DeterministicDeployer,
-  IEntryPoint__factory, IEntryPointSimulations, PackedUserOperation,
-  SimpleAccountFactory__factory
+  IEntryPoint, IEntryPointSimulations, PackedUserOperation,
+  SimpleAccountFactory__factory,
+  fillSignAndPack
 } from '@account-abstraction/utils'
 import { parseEther, hexZeroPad, hexDataSlice } from 'ethers/lib/utils'
 import { EntryPoint__factory, EntryPointSimulations__factory } from '@account-abstraction/utils/dist/src/types'
 import EntryPointSimulationsJson from '@account-abstraction/contracts/artifacts/EntryPointSimulations.json'
+import { IEntryPoint__factory, SimpleAccount__factory } from '../types'
+const ERC20_ABI  = [
+  {
+      "constant": true,
+      "inputs": [],
+      "name": "name",
+      "outputs": [
+          {
+              "name": "",
+              "type": "string"
+          }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+  },
+  {
+      "constant": false,
+      "inputs": [
+          {
+              "name": "_spender",
+              "type": "address"
+          },
+          {
+              "name": "_value",
+              "type": "uint256"
+          }
+      ],
+      "name": "approve",
+      "outputs": [
+          {
+              "name": "",
+              "type": "bool"
+          }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+  },
+  {
+      "constant": true,
+      "inputs": [],
+      "name": "totalSupply",
+      "outputs": [
+          {
+              "name": "",
+              "type": "uint256"
+          }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+  },
+  {
+      "constant": false,
+      "inputs": [
+          {
+              "name": "_from",
+              "type": "address"
+          },
+          {
+              "name": "_to",
+              "type": "address"
+          },
+          {
+              "name": "_value",
+              "type": "uint256"
+          }
+      ],
+      "name": "transferFrom",
+      "outputs": [
+          {
+              "name": "",
+              "type": "bool"
+          }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+  },
+  {
+      "constant": true,
+      "inputs": [],
+      "name": "decimals",
+      "outputs": [
+          {
+              "name": "",
+              "type": "uint8"
+          }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+  },
+  {
+      "constant": true,
+      "inputs": [
+          {
+              "name": "_owner",
+              "type": "address"
+          }
+      ],
+      "name": "balanceOf",
+      "outputs": [
+          {
+              "name": "balance",
+              "type": "uint256"
+          }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+  },
+  {
+      "constant": true,
+      "inputs": [],
+      "name": "symbol",
+      "outputs": [
+          {
+              "name": "",
+              "type": "string"
+          }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+  },
+  {
+      "constant": false,
+      "inputs": [
+          {
+              "name": "_to",
+              "type": "address"
+          },
+          {
+              "name": "_value",
+              "type": "uint256"
+          }
+      ],
+      "name": "transfer",
+      "outputs": [
+          {
+              "name": "",
+              "type": "bool"
+          }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+  },
+  {
+      "constant": true,
+      "inputs": [
+          {
+              "name": "_owner",
+              "type": "address"
+          },
+          {
+              "name": "_spender",
+              "type": "address"
+          }
+      ],
+      "name": "allowance",
+      "outputs": [
+          {
+              "name": "",
+              "type": "uint256"
+          }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+  },
+  {
+      "payable": true,
+      "stateMutability": "payable",
+      "type": "fallback"
+  },
+  {
+      "anonymous": false,
+      "inputs": [
+          {
+              "indexed": true,
+              "name": "owner",
+              "type": "address"
+          },
+          {
+              "indexed": true,
+              "name": "spender",
+              "type": "address"
+          },
+          {
+              "indexed": false,
+              "name": "value",
+              "type": "uint256"
+          }
+      ],
+      "name": "Approval",
+      "type": "event"
+  },
+  {
+      "anonymous": false,
+      "inputs": [
+          {
+              "indexed": true,
+              "name": "from",
+              "type": "address"
+          },
+          {
+              "indexed": true,
+              "name": "to",
+              "type": "address"
+          },
+          {
+              "indexed": false,
+              "name": "value",
+              "type": "uint256"
+          }
+      ],
+      "name": "Transfer",
+      "type": "event"
+  }
+]
 
 const MNEMONIC = 'test test test test test test test test test test test junk'
-const entryPointAddress = '0x1581bcE5FC34d62fB8BF240886B9eBdCd20020fd'
+const entryPointAddress = '0x0000000071727De22E5E9d8BAf0edAc6f37da032'
 const rpcUrl = 'http://localhost:8545'
 const bundlerUrl = 'http://localhost:3000/rpc'
 const provider = new JsonRpcProvider(rpcUrl)
+const token = '0x5aA74b97C775539256e0C08875c4F6B2109af19E' // Address of the ERC-20 token
+const beneficiary = "0xd21934eD8eAf27a67f0A70042Af50A1D6d195E81"
+const paymaster = "0x01711D53eC9f165f3242627019c41CcA7028e7A5"
 
 export interface ValidationData {
   aggregator: string
@@ -25,22 +252,74 @@ export interface ValidationData {
 async function main () {
   const paymasterAPI = new PaymasterAPI(entryPointAddress, bundlerUrl)
 
-  const token = '0xb287B3b21FBE8ae116788B22F413aF9fd179058d' // Address of the ERC-20 token
+  const entryPoint = IEntryPoint__factory.connect(entryPointAddress, provider.getSigner())
   const owner = ethers.Wallet.fromMnemonic(MNEMONIC).connect(provider)
+  console.log('before', await provider.getBalance(entryPoint.address))
+  const signer = await provider.getSigner()
+  await signer.sendTransaction({ to: beneficiary, value: parseEther('2') })
 
-  // await entryPoint.depositTo('0x40A6a0DbBF0175fb5287D1D91ed4088A0591334B', { value: parseEther('1') })
-  // await entryPoint.addStake(1, { value: parseEther('1') })
-
+  await entryPoint.depositTo(paymaster, { value: parseEther('2') })
+  await entryPoint.depositTo(beneficiary, { value: parseEther('2') })
+  console.log("paymaster balance before", await entryPoint.balanceOf(paymaster))
+  console.log("beneficiary balance before", await provider.getBalance(beneficiary))
   const detDeployer = new DeterministicDeployer(provider)
   const factoryAddress = await detDeployer.deterministicDeploy(new SimpleAccountFactory__factory(), 0, [entryPointAddress])
 
-  const dest = ethers.Wallet.createRandom()
-  const value = '0' // Amount of the ERC-20 token to transfer
+  await sendErc20(owner, factoryAddress, paymasterAPI)
+  await sendNative(owner, factoryAddress, paymasterAPI)
 
-  // Read the ERC-20 token contract
-  const ERC20_ABI = require('./erc20Abi.json') // ERC-20 ABI in json format
+  console.log("paymaster balance after", await entryPoint.balanceOf(paymaster))
+  console.log("beneficiary balance after", await provider.getBalance(beneficiary))
+}
+
+async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymasterAPI: PaymasterAPI) {
+  console.log('--- START SENDING NATIVE TOKEN ---')
+  const dest = ethers.Wallet.createRandom()
+
+
+  const accountAPI = new SimpleAccountAPI({
+    provider: provider,
+    entryPointAddress: entryPointAddress,
+    owner: owner,
+    factoryAddress: factoryAddress,
+    paymasterAPI: paymasterAPI
+  })
+
+  const accountContract = await accountAPI._getAccountContract()
+  const signer = await provider.getSigner()
+
+  await signer.sendTransaction({ to: accountContract.address, value: parseEther('1') })
+
+  console.log('account contract balance before', await provider.getBalance(accountContract.address))
+  console.log('owner contract balance before', await provider.getBalance(owner.address))
+  console.log('dest balance before', await provider.getBalance(dest.address))
+  const op = await accountAPI.createSignedUserOp({
+    target: dest.address,
+    data: "0x",
+    value: parseEther('0.12')
+  })
+  
+  const chainId = await provider.getNetwork().then(net => net.chainId)
+  const client = new HttpRpcClient(bundlerUrl, entryPointAddress, chainId)
+
+  const userOpHash = await client.sendUserOpToBundler(op)
+
+  console.log('Waiting for transaction...')
+  const transactionHash = await accountAPI.getUserOpReceipt(userOpHash)
+  console.log(`Transaction hash: ${transactionHash}`)
+
+  console.log('account contract balance after', await provider.getBalance(accountContract.address))
+  console.log('owner contract balance after', await provider.getBalance(owner.address))
+  console.log('dest contract balance after', await provider.getBalance(dest.address))
+  console.log('--- COMPLETE SENDING NATIVE TOKEN ---')
+}
+
+async function sendErc20(owner: ethers.Wallet, factoryAddress: string, paymasterAPI: PaymasterAPI) {
+  const value = '1230' // Amount of the ERC-20 token to transfer
+
   const erc20 = new ethers.Contract(token, ERC20_ABI, provider)
   const amount = ethers.utils.parseUnits(value)
+  const dest = ethers.Wallet.createRandom()
 
   const approve = erc20.interface.encodeFunctionData('approve', [dest.address, amount])
   const transfer = erc20.interface.encodeFunctionData('transfer', [dest.address, amount])
@@ -53,27 +332,24 @@ async function main () {
     paymasterAPI
   })
 
+  const signer = await provider.getSigner()
+
   const accountContract = await accountAPI._getAccountContract()
+  console.log('--- START SENDING ERC20 TOKEN ---')
+  await signer.sendTransaction({ to: accountContract.address, value: parseEther('0.1') })
 
   console.log('onwer balance before', await owner.getBalance())
-
   console.log('onwer contract balance before', await provider.getBalance(accountContract.address))
 
+  console.log('deployer erc20 balance before', await erc20.balanceOf(owner.address))
+  console.log('onwer erc20 balance before', await erc20.balanceOf(dest.address))
+  
   const op = await accountAPI.createSignedUserOp({
-    target: dest.address,
-    data: accountContract.interface.encodeFunctionData('executeBatch', [
-      [token, token],
-      [0, 0],
-      [approve, transfer]
-    ])
+    target: token,
+    data: transfer,
+    value: 0
   })
-  // const res = await simulateValidation(packUserOp(op), entryPointAddress)
-  // const validationData = parseValidationData(res.returnInfo.paymasterValidationData)
-  // //
-  // // console.log('packUserOp(userOp1)', packUserOp(userOp1))
-  // console.log('packUserOp(op)', packUserOp(op))
-  // console.log('validationData(op)', validationData)
-  // Send the user operation
+
   const chainId = await provider.getNetwork().then(net => net.chainId)
   const client = new HttpRpcClient(bundlerUrl, entryPointAddress, chainId)
   const userOpHash = await client.sendUserOpToBundler(op)
@@ -85,6 +361,11 @@ async function main () {
   console.log('onwer balance after', await owner.getBalance())
 
   console.log('onwer contract balance after', await provider.getBalance(accountContract.address))
+
+  console.log('onwer erc20 balance after', await erc20.balanceOf(owner.address))
+  console.log('onwer erc20 balance after', await erc20.balanceOf(dest.address))
+
+  console.log('--- COMPLETE SENDING ERC20 TOKEN ---')
 }
 
 void main()
