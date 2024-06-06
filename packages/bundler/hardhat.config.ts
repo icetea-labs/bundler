@@ -33,12 +33,17 @@ const config: HardhatUserConfig = {
     outDir: 'src/types',
     target: 'ethers-v5'
   },
+  // defaultNetwork: "conla",
   networks: {
     localhost: {
       url: 'http://localhost:8545/',
       saveDeployments: false
     },
-    goerli: getInfuraNetwork('goerli')
+    conla: {
+      url: 'https://testnet-rpc.conla.com/',
+      accounts: ["a1d84702a5b654cb37f51ee52d054e8738b6fde0e974fea2ba1f20c0aed440d9"]
+    },
+    // goerli: getInfuraNetwork('goerli')
   },
   solidity: {
     version: '0.8.23',

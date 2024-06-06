@@ -1,0 +1,15 @@
+services:
+  bundler:
+    container_name: bundler-core
+    restart: unless-stopped
+    build:
+      dockerfile: Dockerfile
+    ports:
+      - 0.0.0.0:3000:3000
+    networks:
+      - bundler
+    command:
+      - "node dist/index.js bundler --unsafe"
+
+networks:
+  bundler:

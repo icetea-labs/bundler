@@ -103,7 +103,9 @@ export class ValidationManager {
   // standard eth_call to simulateValidation
   async _callSimulateValidation (userOp: UserOperation): Promise<ValidationResult> {
     // Promise<IEntryPointSimulations.ValidationResultStructOutput> {
+    console.log("User op call simulation", packUserOp(userOp))
     const data = entryPointSimulations.encodeFunctionData('simulateValidation', [packUserOp(userOp)])
+    console.log("data user op", data)
     const tx = {
       to: this.entryPoint.address,
       data
@@ -116,9 +118,9 @@ export class ValidationManager {
     try {
       const provider = this.entryPoint.provider as JsonRpcProvider
       const simulationResult = await provider.send('eth_call', [tx, 'latest', stateOverride])
-
+      console.log("simulation result: ", simulationResult)
       const [res] = entryPointSimulations.decodeFunctionResult('simulateValidation', simulationResult) as ValidationResultStructOutput[]
-
+      console.log("resssssss", res)
       return this.parseValidationResult(userOp, res)
     } catch (error: any) {
       const decodedError = decodeRevertReason(error)
@@ -134,56 +136,63 @@ export class ValidationManager {
     throw new Error(errorResult.errorName)
   }
 
-  async _geth_traceCall_SimulateValidation (userOp: UserOperation): Promise<[ValidationResult, BundlerTracerResult]> {
-    const provider = this.entryPoint.provider as JsonRpcProvider
-    const simulateCall = entryPointSimulations.encodeFunctionData('simulateValidation', [packUserOp(userOp)])
-
-    const simulationGas = BigNumber.from(userOp.preVerificationGas).add(userOp.verificationGasLimit)
-
-    const tracerResult: BundlerTracerResult = await debug_traceCall(provider, {
-      from: AddressZero,
-      to: this.entryPoint.address,
-      data: simulateCall,
-      gasLimit: simulationGas
-    }, {
-      tracer: bundlerCollectorTracer,
-      stateOverrides: {
-        [this.entryPoint.address]: {
-          code: EntryPointSimulationsJson.deployedBytecode
-        }
-      }
-    })
-
-    const lastResult = tracerResult.calls.slice(-1)[0]
-    const data = (lastResult as ExitInfo).data
-    if (lastResult.type === 'REVERT') {
-      throw new RpcError(decodeRevertReason(data, false) as string, ValidationErrors.SimulateValidation)
-    }
-    // // Hack to handle SELFDESTRUCT until we fix entrypoint
-    // if (data === '0x') {
-    //   return [data as any, tracerResult]
-    // }
+  async _geth_traceCall_SimulateValidation (userOp: UserOperation): Promise<[ValidationResult, BundlerTracerResult] | any> {
     try {
-      const [decodedSimulations] = entryPointSimulations.decodeFunctionResult('simulateValidation', data)
-      const validationResult = this.parseValidationResult(userOp, decodedSimulations)
-
-      debug('==dump tree=', JSON.stringify(tracerResult, null, 2)
-        .replace(new RegExp(userOp.sender.toLowerCase()), '{sender}')
-        .replace(new RegExp(getAddr(userOp.paymaster) ?? '--no-paymaster--'), '{paymaster}')
-        .replace(new RegExp(getAddr(userOp.factory) ?? '--no-initcode--'), '{factory}')
-      )
-      // console.log('==debug=', ...tracerResult.numberLevels.forEach(x=>x.access), 'sender=', userOp.sender, 'paymaster=', hexlify(userOp.paymasterAndData)?.slice(0, 42))
-      // errorResult is "ValidationResult"
-      return [validationResult, tracerResult]
-    } catch (e: any) {
-      // if already parsed, throw as is
-      if (e.code != null) {
-        throw e
+      console.log("asdasdasdasd")
+      const provider = this.entryPoint.provider as JsonRpcProvider
+      const simulateCall = entryPointSimulations.encodeFunctionData('simulateValidation', [packUserOp(userOp)])
+  
+      const simulationGas = BigNumber.from(userOp.preVerificationGas).add(userOp.verificationGasLimit)
+  
+      const tracerResult: BundlerTracerResult = await debug_traceCall(provider, {
+        from: AddressZero,
+        to: this.entryPoint.address,
+        data: simulateCall,
+        gasLimit: simulationGas
+      }, {
+        tracer: bundlerCollectorTracer,
+        stateOverrides: {
+          [this.entryPoint.address]: {
+            code: EntryPointSimulationsJson.deployedBytecode
+          }
+        }
+      })
+  
+  
+      const lastResult = tracerResult.calls.slice(-1)[0]
+      const data = (lastResult as ExitInfo).data
+      if (lastResult.type === 'REVERT') {
+        throw new RpcError(decodeRevertReason(data, false) as string, ValidationErrors.SimulateValidation)
       }
-      // not a known error of EntryPoint (probably, only Error(string), since FailedOp is handled above)
-      const err = decodeErrorReason(e)
-      throw new RpcError(err != null ? err.message : data, -32000)
+      // // Hack to handle SELFDESTRUCT until we fix entrypoint
+      // if (data === '0x') {
+      //   return [data as any, tracerResult]
+      // }
+      try {
+        const [decodedSimulations] = entryPointSimulations.decodeFunctionResult('simulateValidation', data)
+        const validationResult = this.parseValidationResult(userOp, decodedSimulations)
+  
+        debug('==dump tree=', JSON.stringify(tracerResult, null, 2)
+          .replace(new RegExp(userOp.sender.toLowerCase()), '{sender}')
+          .replace(new RegExp(getAddr(userOp.paymaster) ?? '--no-paymaster--'), '{paymaster}')
+          .replace(new RegExp(getAddr(userOp.factory) ?? '--no-initcode--'), '{factory}')
+        )
+        // console.log('==debug=', ...tracerResult.numberLevels.forEach(x=>x.access), 'sender=', userOp.sender, 'paymaster=', hexlify(userOp.paymasterAndData)?.slice(0, 42))
+        // errorResult is "ValidationResult"
+        return [validationResult, tracerResult]
+      } catch (e: any) {
+        // if already parsed, throw as is
+        if (e.code != null) {
+          throw e
+        }
+        // not a known error of EntryPoint (probably, only Error(string), since FailedOp is handled above)
+        const err = decodeErrorReason(e)
+        throw new RpcError(err != null ? err.message : data, -32000)
+      }  
+    } catch (err) {
+      console.log(err)
     }
+    
   }
 
   /**
