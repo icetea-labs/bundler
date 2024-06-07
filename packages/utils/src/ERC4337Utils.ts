@@ -184,9 +184,6 @@ export function packUserOp (op: UserOperation): PackedUserOperation {
     paymasterAndData = packPaymasterData(op.paymaster, op.paymasterVerificationGasLimit, op.paymasterPostOpGasLimit, op.paymasterData)
   }
 
-  op.maxFeePerGas = 0
-  op.maxPriorityFeePerGas = 1e9
-  console.log("OP log",op)
   return {
     sender: op.sender,
     nonce: BigNumber.from(op.nonce).toHexString(),

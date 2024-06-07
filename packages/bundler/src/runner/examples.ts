@@ -5,7 +5,8 @@ import {
   DeterministicDeployer,
   IEntryPoint, IEntryPointSimulations, PackedUserOperation,
   SimpleAccountFactory__factory,
-  fillSignAndPack
+  fillSignAndPack,
+  packUserOp
 } from '@account-abstraction/utils'
 import { parseEther, hexZeroPad, hexDataSlice, formatEther } from 'ethers/lib/utils'
 import { EntryPoint__factory, EntryPointSimulations__factory } from '@account-abstraction/utils/dist/src/types'
@@ -49,14 +50,14 @@ async function main () {
   const factoryAddress = await detDeployer.deterministicDeploy(new SimpleAccountFactory__factory(), 0, [entryPointAddress])
 
   // await sendErc20(owner, factoryAddress, paymasterAPI)
-  await sendNative(owner, factoryAddress, paymasterAPI)
+  await sendNative(owner, factoryAddress, paymasterAPI, entryPoint)
 
-  // console.log("paymaster balance after", formatEther(await entryPoint.balanceOf(paymaster)))
-  // console.log("beneficiary balance after", formatEther(await provider.getBalance(beneficiary)))
-  // console.log("default owner balance after", formatEther(await provider.getBalance("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")))
+  console.log("paymaster balance after", formatEther(await entryPoint.balanceOf(paymaster)))
+  console.log("beneficiary balance after", formatEther(await provider.getBalance(beneficiary)))
+  console.log("default owner balance after", formatEther(await provider.getBalance("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")))
 }
 
-async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymasterAPI: PaymasterAPI) {
+async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymasterAPI: PaymasterAPI, entryPoint : IEntryPoint) {
   console.log('--- START SENDING NATIVE TOKEN ---')
   const dest = ethers.Wallet.createRandom()
 
@@ -73,82 +74,89 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
 
   await owner.sendTransaction({ to: accountContract.address, value: parseEther('1') })
 
-  // console.log('account contract balance before', formatEther(await provider.getBalance(accountContract.address)))
-  // console.log('owner contract balance before', formatEther(await provider.getBalance(owner.address)))
-  // console.log('dest balance before', formatEther(await provider.getBalance(dest.address)))
+  console.log('account contract balance before', formatEther(await provider.getBalance(accountContract.address)))
+  console.log('owner contract balance before', formatEther(await provider.getBalance(owner.address)))
+  console.log('dest balance before', formatEther(await provider.getBalance(dest.address)))
   
+  const gasPrice = await provider.getGasPrice()
+
   const op = await accountAPI.createSignedUserOp({
     target: dest.address,
     data: "0x",
-    value: parseEther('0.12')
+    value: parseEther('0.12'),
+    maxFeePerGas: gasPrice,
+    maxPriorityFeePerGas: gasPrice,
   })
   
   const chainId = await provider.getNetwork().then(net => net.chainId)
   const client = new HttpRpcClient(bundlerUrl, entryPointAddress, chainId)
 
-  const userOpHash = await client.sendUserOpToBundler(op)
+  // const userOpHash = await client.sendUserOpToBundler(op)
 
   console.log('Waiting for transaction...')
-  const transactionHash = await accountAPI.getUserOpReceipt(userOpHash)
-  console.log(`Transaction hash: ${transactionHash}`)
+  // const transactionHash = await accountAPI.getUserOpReceipt(userOpHash)
 
-  // console.log('account contract balance after', formatEther(await provider.getBalance(accountContract.address)))
-  // console.log('owner contract balance after', formatEther(await provider.getBalance(owner.address)))
-  // console.log('dest contract balance after', formatEther(await provider.getBalance(dest.address)))
+  const packeUserOp = await packUserOp(op)
+  const transactionHash = await entryPoint.handleOps([packeUserOp], beneficiary)
+  console.log(`Transaction hash: ${transactionHash.hash}`)
+
+  console.log('account contract balance after', formatEther(await provider.getBalance(accountContract.address)))
+  console.log('owner contract balance after', formatEther(await provider.getBalance(owner.address)))
+  console.log('dest contract balance after', formatEther(await provider.getBalance(dest.address)))
 
   console.log('--- COMPLETE SENDING NATIVE TOKEN ---')
 }
 
-async function sendErc20(owner: ethers.Wallet, factoryAddress: string, paymasterAPI: PaymasterAPI) {
-  const value = '1230' // Amount of the ERC-20 token to transfer
+// async function sendErc20(owner: ethers.Wallet, factoryAddress: string, paymasterAPI: PaymasterAPI) {
+//   const value = '1230' // Amount of the ERC-20 token to transfer
 
-  const erc20 = new ethers.Contract(token, erc20ABI, provider)
-  const amount = ethers.utils.parseUnits(value)
-  const dest = ethers.Wallet.createRandom()
+//   const erc20 = new ethers.Contract(token, erc20ABI, provider)
+//   const amount = ethers.utils.parseUnits(value)
+//   const dest = ethers.Wallet.createRandom()
 
-  const approve = erc20.interface.encodeFunctionData('approve', [dest.address, amount])
-  const transfer = erc20.interface.encodeFunctionData('transfer', [dest.address, amount])
+//   const approve = erc20.interface.encodeFunctionData('approve', [dest.address, amount])
+//   const transfer = erc20.interface.encodeFunctionData('transfer', [dest.address, amount])
 
-  const accountAPI = new SimpleAccountAPI({
-    provider,
-    entryPointAddress,
-    owner,
-    factoryAddress,
-    paymasterAPI
-  })
+//   const accountAPI = new SimpleAccountAPI({
+//     provider,
+//     entryPointAddress,
+//     owner,
+//     factoryAddress,
+//     paymasterAPI
+//   })
 
-  const signer = await provider.getSigner()
+//   const signer = await provider.getSigner()
 
-  const accountContract = await accountAPI._getAccountContract()
-  console.log('--- START SENDING ERC20 TOKEN ---')
-  await signer.sendTransaction({ to: accountContract.address, value: parseEther('0.1') })
+//   const accountContract = await accountAPI._getAccountContract()
+//   console.log('--- START SENDING ERC20 TOKEN ---')
+//   await signer.sendTransaction({ to: accountContract.address, value: parseEther('0.1') })
 
-  console.log('onwer balance before', await owner.getBalance())
-  console.log('account contract balance before', await provider.getBalance(accountContract.address))
-  console.log('owner erc20 balance before', await erc20.balanceOf(owner.address))
-  console.log('dest erc20 balance before', await erc20.balanceOf(dest.address))
+//   console.log('onwer balance before', await owner.getBalance())
+//   console.log('account contract balance before', await provider.getBalance(accountContract.address))
+//   console.log('owner erc20 balance before', await erc20.balanceOf(owner.address))
+//   console.log('dest erc20 balance before', await erc20.balanceOf(dest.address))
   
-  const op = await accountAPI.createSignedUserOp({
-    target: token,
-    data: transfer,
-    value: 0
-  })
+//   const op = await accountAPI.createSignedUserOp({
+//     target: token,
+//     data: transfer,
+//     value: 0
+//   })
 
-  const chainId = await provider.getNetwork().then(net => net.chainId)
-  const client = new HttpRpcClient(bundlerUrl, entryPointAddress, chainId)
-  const userOpHash = await client.sendUserOpToBundler(op)
+//   const chainId = await provider.getNetwork().then(net => net.chainId)
+//   const client = new HttpRpcClient(bundlerUrl, entryPointAddress, chainId)
+//   const userOpHash = await client.sendUserOpToBundler(op)
 
-  console.log('Waiting for transaction...')
-  const transactionHash = await accountAPI.getUserOpReceipt(userOpHash)
-  console.log(`Transaction hash: ${transactionHash}`)
+//   console.log('Waiting for transaction...')
+//   const transactionHash = await accountAPI.getUserOpReceipt(userOpHash)
+//   console.log(`Transaction hash: ${transactionHash}`)
 
-  console.log('onwer balance after', await owner.getBalance())
-  console.log('account contract balance after', await provider.getBalance(accountContract.address))
-  console.log('onwer erc20 balance after', await erc20.balanceOf(owner.address))
-  console.log('dest erc20 balance after', await erc20.balanceOf(dest.address))
+//   console.log('onwer balance after', await owner.getBalance())
+//   console.log('account contract balance after', await provider.getBalance(accountContract.address))
+//   console.log('onwer erc20 balance after', await erc20.balanceOf(owner.address))
+//   console.log('dest erc20 balance after', await erc20.balanceOf(dest.address))
 
-  console.log('--- COMPLETE SENDING ERC20 TOKEN ---')
-}
+//   console.log('--- COMPLETE SENDING ERC20 TOKEN ---')
+// }
 
 void main()
   .catch(e => { console.log(e); process.exit(1) })
