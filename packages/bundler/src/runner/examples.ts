@@ -32,7 +32,11 @@ export interface ValidationData {
 
 async function main () {
   const paymasterAPI = new PaymasterAPI(entryPointAddress, bundlerUrl)
-  const owner = ethers.Wallet.fromMnemonic(MNEMONIC).connect(provider)
+  const owner0 = ethers.Wallet.fromMnemonic(MNEMONIC, "m/44'/60'/0'/0/0").connect(provider)
+  const owner = ethers.Wallet.fromMnemonic(MNEMONIC, "m/44'/60'/0'/0/10").connect(provider)
+
+  console.log("wallet", owner.address)
+  await owner0.sendTransaction({ to: owner.address, value: parseEther('5') })
   
   const entryPoint = IEntryPoint__factory.connect(entryPointAddress, owner)
   console.log('before', await provider.getBalance(entryPoint.address))
@@ -42,15 +46,29 @@ async function main () {
 
   // await entryPoint.depositTo(paymaster, { value: parseEther('2') })
   // await entryPoint.depositTo(beneficiary, { value: parseEther('2') })
-  // console.log("paymaster balance before", formatEther(await entryPoint.balanceOf(paymaster)))
+  console.log("paymaster balance before", formatEther(await entryPoint.balanceOf(paymaster)))
   // const paymasterBalanceBefore = await entryPoint.balanceOf(paymaster)
-  // console.log("beneficiary balance before", formatEther(await provider.getBalance(beneficiary)))
+  // console.log("beneficiary balance before", formatEther(await provid  er.getBalance(beneficiary)))
   
   const detDeployer = new DeterministicDeployer(provider)
   const factoryAddress = await detDeployer.deterministicDeploy(new SimpleAccountFactory__factory(), 0, [entryPointAddress])
+  const accountFactory = new SimpleAccountFactory__factory(owner).attach(factoryAddress)
+  await (await accountFactory).createAccount(owner.address, 0)
+
+
+  // const accountFactory = _factory ?? await new SimpleAccountFactory__factory(ethersSigner).deploy(entryPoint)
+  // const implementation = await accountFactory.accountImplementation()
+  // await accountFactory.createAccount(accountOwner, 0)
+  // const accountAddress = await accountFactory.getAddress(accountOwner, 0)
+  // const proxy = SimpleAccount__factory.connect(accountAddress, ethersSigner)
+  // return {
+  //   implementation,
+  //   accountFactory,
+  //   proxy
+  // }
 
   // await sendErc20(owner, factoryAddress, paymasterAPI)
-  await sendNative(owner, factoryAddress, paymasterAPI, entryPoint)
+  await sendNative(owner, (await accountFactory).address, paymasterAPI, entryPoint)
 
   console.log("paymaster balance after", formatEther(await entryPoint.balanceOf(paymaster)))
   console.log("beneficiary balance after", formatEther(await provider.getBalance(beneficiary)))
@@ -87,6 +105,8 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
     maxFeePerGas: gasPrice,
     maxPriorityFeePerGas: gasPrice,
   })
+
+  console.log("opppppp", op)
   
   const chainId = await provider.getNetwork().then(net => net.chainId)
   const client = new HttpRpcClient(bundlerUrl, entryPointAddress, chainId)
@@ -95,10 +115,12 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
 
   console.log('Waiting for transaction...')
   // const transactionHash = await accountAPI.getUserOpReceipt(userOpHash)
-
   const packeUserOp = await packUserOp(op)
-  const transactionHash = await entryPoint.handleOps([packeUserOp], beneficiary)
-  console.log(`Transaction hash: ${transactionHash.hash}`)
+
+
+  const tx = await entryPoint.handleOps([packeUserOp], beneficiary)
+  const receipt = await tx.wait()
+  console.log("tx hash: ", tx.hash)
 
   console.log('account contract balance after', formatEther(await provider.getBalance(accountContract.address)))
   console.log('owner contract balance after', formatEther(await provider.getBalance(owner.address)))
