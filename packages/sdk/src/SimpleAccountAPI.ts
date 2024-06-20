@@ -1,5 +1,8 @@
-import { BigNumber, BigNumberish } from 'ethers'
+import { BigNumber, BigNumberish, ContractTransaction, ethers } from 'ethers'
 import {
+  IEntryPoint,
+  IEntryPoint__factory,
+  PackedUserOperationStruct,
   SimpleAccount,
   SimpleAccount__factory, SimpleAccountFactory,
   SimpleAccountFactory__factory
@@ -19,7 +22,6 @@ export interface SimpleAccountApiParams extends BaseApiParams {
   owner: Signer
   factoryAddress?: string
   index?: BigNumberish
-
 }
 
 /**
@@ -39,14 +41,19 @@ export class SimpleAccountAPI extends BaseAccountAPI {
    * should support the "execFromEntryPoint" and "nonce" methods
    */
   accountContract?: SimpleAccount
-
+  entrypoint: IEntryPoint
   factory?: SimpleAccountFactory
+  beneficiaryAddress: string
 
   constructor (params: SimpleAccountApiParams) {
     super(params)
     this.factoryAddress = params.factoryAddress
     this.owner = params.owner
     this.index = BigNumber.from(params.index ?? 0)
+    this.beneficiaryAddress = ethers.constants.AddressZero
+    
+    this.beneficiaryAddress = "0xEE35dA6bA29cc1A60d0d9042fa8c88CbEA6d12c0"
+    this.entrypoint = IEntryPoint__factory.connect(params.entryPointAddress, params.provider).connect(this.owner)
   }
 
   async _getAccountContract (): Promise<SimpleAccount> {
@@ -101,5 +108,9 @@ export class SimpleAccountAPI extends BaseAccountAPI {
 
   async signUserOpHash (userOpHash: string): Promise<string> {
     return await this.owner.signMessage(arrayify(userOpHash))
+  }
+
+  async sendHandlerOps(ops: PackedUserOperationStruct[]): Promise<ContractTransaction> {
+    return await this.entrypoint.handleOps(ops, this.beneficiaryAddress)
   }
 }
