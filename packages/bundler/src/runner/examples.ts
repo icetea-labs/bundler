@@ -88,6 +88,7 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
 
   const gasPrice = await provider.getGasPrice()
   const value = parseEther('0.1')
+
   const op = await accountAPI.createSignedUserOp({
     target: dest.address,
     data: "0x", 
@@ -97,7 +98,7 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
   })
 
   const packeUserOp = await packUserOp(op)
-
+  
   const tx = await accountAPI.sendHandlerOps([packeUserOp])
   console.log("tx hash: ", tx.hash)
   console.log('--- COMPLETE SENDING NATIVE TOKEN ---')
@@ -131,6 +132,7 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
 //   console.log('account contract balance before', await provider.getBalance(accountContract.address))
 //   console.log('owner erc20 balance before', await erc20.balanceOf(owner.address))
 //   console.log('dest erc20 balance before', await erc20.balanceOf(dest.address))
+
   
 //   const op = await accountAPI.createSignedUserOp({
 //     target: token,
@@ -153,6 +155,7 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
 
 //   console.log('--- COMPLETE SENDING ERC20 TOKEN ---')
 // }
+
 
 void main()
   .catch(e => { console.log(e); process.exit(1) })
