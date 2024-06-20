@@ -17,8 +17,8 @@ import erc20ABI from "./erc20abi.json"
 // const MNEMONIC = 'test test test test test test test test test test test junk'
 const MNEMONIC = 'skate eight behind action easy maximum rigid cycle surround solar warm world'
 const entryPointAddress = '0x3bFc49341Aae93e30F6e2BE5a7Fa371cEbd5bea4'
-const rpcUrl = 'https://testnet-rpc.conla.com'
-const bundlerUrl = 'http://localhost:3000/rpc'
+const rpcUrl = 'https://rpc.testnet.conla.com'
+const bundlerUrl = 'http://34.172.46.5:3000/rpc'
 const provider = new JsonRpcProvider(rpcUrl)
 const token = '0x5aA74b97C775539256e0C08875c4F6B2109af19E' // Address of the ERC-20 token
 const beneficiary = "0xEE35dA6bA29cc1A60d0d9042fa8c88CbEA6d12c0"
@@ -33,16 +33,16 @@ export interface ValidationData {
 async function main () {
   const paymasterAPI = new PaymasterAPI(entryPointAddress, bundlerUrl)
   const owner0 = ethers.Wallet.fromMnemonic(MNEMONIC, "m/44'/60'/0'/0/0").connect(provider)
-  const owner = ethers.Wallet.fromMnemonic(MNEMONIC, "m/44'/60'/0'/0/10").connect(provider)
+  const owner = ethers.Wallet.fromMnemonic(MNEMONIC, "m/44'/60'/0'/0/3").connect(provider)
 
   console.log("wallet", owner.address)
-  await owner0.sendTransaction({ to: owner.address, value: parseEther('5') })
+  await owner0.sendTransaction({ to: owner.address, value: parseEther('15') })
   
   const entryPoint = IEntryPoint__factory.connect(entryPointAddress, owner)
   console.log('before', await provider.getBalance(entryPoint.address))
   console.log('signer', formatEther(await owner.getBalance()))
   console.log('signer', owner.getAddress())
-  await owner.sendTransaction({ to: beneficiary, value: parseEther('2') })
+  // await owner.sendTransaction({ to: beneficiary, value: parseEther('2') })
 
   // await entryPoint.depositTo(paymaster, { value: parseEther('2') })
   // await entryPoint.depositTo(beneficiary, { value: parseEther('2') })
@@ -68,34 +68,25 @@ async function main () {
   // }
 
   // await sendErc20(owner, factoryAddress, paymasterAPI)
-  await sendNative(owner, (await accountFactory).address, paymasterAPI, entryPoint)
+  await sendNative(owner, (await accountFactory).address, paymasterAPI)
 
   console.log("paymaster balance after", formatEther(await entryPoint.balanceOf(paymaster)))
   console.log("beneficiary balance after", formatEther(await provider.getBalance(beneficiary)))
   console.log("default owner balance after", formatEther(await provider.getBalance("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")))
 }
 
-async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymasterAPI: PaymasterAPI, entryPoint : IEntryPoint) {
+async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymasterAPI: PaymasterAPI) {
   console.log('--- START SENDING NATIVE TOKEN ---')
   const dest = ethers.Wallet.createRandom()
-
 
   const accountAPI = new SimpleAccountAPI({
     provider: provider,
     entryPointAddress: entryPointAddress,
     owner: owner,
     factoryAddress: factoryAddress,
-    paymasterAPI: paymasterAPI
+    paymasterAPI: paymasterAPI,
   })
 
-  const accountContract = await accountAPI._getAccountContract()
-
-  await owner.sendTransaction({ to: accountContract.address, value: parseEther('1') })
-
-  console.log('account contract balance before', formatEther(await provider.getBalance(accountContract.address)))
-  console.log('owner contract balance before', formatEther(await provider.getBalance(owner.address)))
-  console.log('dest balance before', formatEther(await provider.getBalance(dest.address)))
-  
   const gasPrice = await provider.getGasPrice()
 
   const op = await accountAPI.createSignedUserOp({
@@ -106,26 +97,10 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
     maxPriorityFeePerGas: gasPrice,
   })
 
-  console.log("opppppp", op)
-  
-  const chainId = await provider.getNetwork().then(net => net.chainId)
-  const client = new HttpRpcClient(bundlerUrl, entryPointAddress, chainId)
-
-  // const userOpHash = await client.sendUserOpToBundler(op)
-
-  console.log('Waiting for transaction...')
-  // const transactionHash = await accountAPI.getUserOpReceipt(userOpHash)
   const packeUserOp = await packUserOp(op)
 
-
-  const tx = await entryPoint.handleOps([packeUserOp], beneficiary)
-  const receipt = await tx.wait()
+  const tx = await accountAPI.sendHandlerOps([packeUserOp])
   console.log("tx hash: ", tx.hash)
-
-  console.log('account contract balance after', formatEther(await provider.getBalance(accountContract.address)))
-  console.log('owner contract balance after', formatEther(await provider.getBalance(owner.address)))
-  console.log('dest contract balance after', formatEther(await provider.getBalance(dest.address)))
-
   console.log('--- COMPLETE SENDING NATIVE TOKEN ---')
 }
 
