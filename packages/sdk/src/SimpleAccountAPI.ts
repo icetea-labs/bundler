@@ -5,7 +5,8 @@ import {
   PackedUserOperationStruct,
   SimpleAccount,
   SimpleAccount__factory, SimpleAccountFactory,
-  SimpleAccountFactory__factory
+  SimpleAccountFactory__factory,
+  UserOperation
 } from '@account-abstraction/utils'
 
 import { arrayify } from 'ethers/lib/utils'
@@ -22,6 +23,7 @@ export interface SimpleAccountApiParams extends BaseApiParams {
   owner: Signer
   factoryAddress?: string
   index?: BigNumberish
+  bundlerUrl?: string
 }
 
 /**
@@ -35,25 +37,25 @@ export class SimpleAccountAPI extends BaseAccountAPI {
   factoryAddress?: string
   owner: Signer
   index: BigNumberish
+  entrypointAddress: string
 
   /**
    * our account contract.
    * should support the "execFromEntryPoint" and "nonce" methods
    */
   accountContract?: SimpleAccount
-  entrypoint: IEntryPoint
   factory?: SimpleAccountFactory
   beneficiaryAddress: string
-
+  bundlerUrl: string|undefined
   constructor (params: SimpleAccountApiParams) {
     super(params)
     this.factoryAddress = params.factoryAddress
     this.owner = params.owner
     this.index = BigNumber.from(params.index ?? 0)
     this.beneficiaryAddress = ethers.constants.AddressZero
-    
     this.beneficiaryAddress = "0xEE35dA6bA29cc1A60d0d9042fa8c88CbEA6d12c0"
-    this.entrypoint = IEntryPoint__factory.connect(params.entryPointAddress, params.provider).connect(this.owner)
+    this.entrypointAddress = params.entryPointAddress
+    this.bundlerUrl = params.bundlerUrl
   }
 
   async _getAccountContract (): Promise<SimpleAccount> {
@@ -110,7 +112,42 @@ export class SimpleAccountAPI extends BaseAccountAPI {
     return await this.owner.signMessage(arrayify(userOpHash))
   }
 
-  async sendHandlerOps(ops: PackedUserOperationStruct[]): Promise<ContractTransaction> {
-    return await this.entrypoint.handleOps(ops, this.beneficiaryAddress)
+  async sendHandlerOps(ops: UserOperation[]): Promise<string> {
+    const convertUserOperation = (op: UserOperation) => {
+      return {
+          "sender": op.sender,
+          "nonce": Number(op.nonce),
+          "initCode": op.initCode,
+          "callData": op.callData,
+          "callGasLimit": Number(op.callGasLimit),
+          "verificationGasLimit": Number(op.verificationGasLimit),
+          "maxFeePerGas": Number(op.maxFeePerGas),
+          "maxPriorityFeePerGas": Number(op.maxPriorityFeePerGas),
+          "paymasterAndData": op.paymasterData,
+          "preVerificationGas": Number(op.preVerificationGas),
+          "signature": op.signature,
+          "paymasterVerificationGasLimit": Number(op.paymasterVerificationGasLimit),
+          "paymasterPostOpGasLimit": Number(op.paymasterPostOpGasLimit),
+          "paymaster": op.paymaster,
+          "entryPoint": this.entrypointAddress,
+        };
+    };
+
+    const params = ops.map(convertUserOperation)
+   
+    const response = await fetch(this.bundlerUrl + "/api/v1/bundler/userop", {
+      method: 'POST', 
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        "data": params
+      })
+    });
+    if (!response.ok) {
+      throw new Error('Network response was not ok ' + response.statusText);
+    }
+    const responseData = await response.json();
+    return responseData.data
   }
 }

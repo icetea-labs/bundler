@@ -273,7 +273,6 @@ export abstract class BaseAccountAPI {
     if (this.paymasterAPI != null) {
       // fill (partial) preVerificationGas (all except the cost of the generated paymasterAndData)
       const pmFields = await this.paymasterAPI.getPaymasterData(partialUserOp)
-      console.log('pmfields ne', pmFields)
       if (pmFields != null) {
         partialUserOp = {
           ...partialUserOp,
