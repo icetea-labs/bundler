@@ -99,7 +99,6 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
     maxPriorityFeePerGas: gasPrice,
   })
 
-  console.log("opppppp",op)
   // const packeUserOp = await packUserOp(op)
   // console.log("packeUserOp",packeUserOp)
   const tx = await accountAPI.sendHandlerOps([op])

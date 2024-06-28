@@ -37,13 +37,13 @@ export class SimpleAccountAPI extends BaseAccountAPI {
   factoryAddress?: string
   owner: Signer
   index: BigNumberish
+  entrypointAddress: string
 
   /**
    * our account contract.
    * should support the "execFromEntryPoint" and "nonce" methods
    */
   accountContract?: SimpleAccount
-  entrypoint: IEntryPoint
   factory?: SimpleAccountFactory
   beneficiaryAddress: string
   bundlerUrl: string|undefined
@@ -54,7 +54,7 @@ export class SimpleAccountAPI extends BaseAccountAPI {
     this.index = BigNumber.from(params.index ?? 0)
     this.beneficiaryAddress = ethers.constants.AddressZero
     this.beneficiaryAddress = "0xEE35dA6bA29cc1A60d0d9042fa8c88CbEA6d12c0"
-    this.entrypoint = IEntryPoint__factory.connect(params.entryPointAddress, params.provider).connect(this.owner)
+    this.entrypointAddress = params.entryPointAddress
     this.bundlerUrl = params.bundlerUrl
   }
 
@@ -129,14 +129,12 @@ export class SimpleAccountAPI extends BaseAccountAPI {
           "paymasterVerificationGasLimit": Number(op.paymasterVerificationGasLimit),
           "paymasterPostOpGasLimit": Number(op.paymasterPostOpGasLimit),
           "paymaster": op.paymaster,
-          "entryPoint": "0x3bFc49341Aae93e30F6e2BE5a7Fa371cEbd5bea4",
+          "entryPoint": this.entrypointAddress,
         };
     };
 
     const params = ops.map(convertUserOperation)
-    console.log("ssssssssss",JSON.stringify({
-      "data": params
-    }));
+   
     const response = await fetch(this.bundlerUrl + "/api/v1/bundler/userop", {
       method: 'POST', 
       headers: {
