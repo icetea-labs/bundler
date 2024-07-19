@@ -76,6 +76,8 @@ export class PaymasterAPI {
       "maxFeePerGas": Number(op.maxFeePerGas), 
       "maxPriorityFeePerGas": Number(op.maxPriorityFeePerGas), 
       "signature": op.signature.toString(),
+      "factory": op.factory?.toString(),
+      "factoryData": op.factoryData?.toString(),
     }
 
     const response = await fetch(this.paymasterUrl + "/api/v1/bundler/paymaster", {

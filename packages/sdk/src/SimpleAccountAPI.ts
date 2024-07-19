@@ -77,6 +77,7 @@ export class SimpleAccountAPI extends BaseAccountAPI {
         throw new Error('no factory to get initCode')
       }
     }
+
     return {
       factory: this.factory.address,
       factoryData: this.factory.interface.encodeFunctionData('createAccount', [await this.owner.getAddress(), this.index])
@@ -112,7 +113,7 @@ export class SimpleAccountAPI extends BaseAccountAPI {
     return await this.owner.signMessage(arrayify(userOpHash))
   }
 
-  async sendHandlerOps(ops: UserOperation[]): Promise<string> {
+  async sendHandlerOps(ops: UserOperation[], optionalGas: boolean): Promise<string> {
     const convertUserOperation = (op: UserOperation) => {
       return {
           "sender": op.sender,
@@ -130,6 +131,8 @@ export class SimpleAccountAPI extends BaseAccountAPI {
           "paymasterPostOpGasLimit": Number(op.paymasterPostOpGasLimit),
           "paymaster": op.paymaster,
           "entryPoint": this.entrypointAddress,
+          "factory": op.factory,
+          "factoryData": op.factoryData,
         };
     };
 
@@ -141,7 +144,8 @@ export class SimpleAccountAPI extends BaseAccountAPI {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        "data": params
+        "data": params,
+        "optionalGas": optionalGas
       })
     });
     if (!response.ok) {
