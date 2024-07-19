@@ -179,7 +179,6 @@ export abstract class BaseAccountAPI {
       if (a == null || a === '') return null
       return BigNumber.from(a.toString())
     }
-
     const value = parseNumber(detailsForUserOp.value) ?? BigNumber.from(0)
     const callData = await this.encodeExecute(detailsForUserOp.target, value, detailsForUserOp.data)
 
@@ -238,8 +237,8 @@ export abstract class BaseAccountAPI {
       callData,
       callGasLimit
     } = await this.encodeUserOpCallDataAndGasLimit(info)
-    const factoryParams = await this.getRequiredFactoryData()
 
+    const factoryParams = await this.getRequiredFactoryData()
     const initGas = await this.estimateCreationGas(factoryParams)
     const verificationGasLimit = BigNumber.from(await this.getVerificationGasLimit())
       .add(initGas)
@@ -264,7 +263,7 @@ export abstract class BaseAccountAPI {
       factory: factoryParams?.factory,
       factoryData: factoryParams?.factoryData,
       callData,
-      callGasLimit,
+      callGasLimit, 
       verificationGasLimit,
       maxFeePerGas: maxFeePerGas as any,
       maxPriorityFeePerGas: maxPriorityFeePerGas as any
@@ -272,6 +271,7 @@ export abstract class BaseAccountAPI {
 
     if (this.paymasterAPI != null) {
       // fill (partial) preVerificationGas (all except the cost of the generated paymasterAndData)
+      
       const pmFields = await this.paymasterAPI.getPaymasterData(partialUserOp)
       if (pmFields != null) {
         partialUserOp = {

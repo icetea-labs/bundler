@@ -1,6 +1,6 @@
 {
-  "name": "@account-abstraction/utils",
-  "version": "0.7.0",
+  "name": "@conla/utils",
+  "version": "0.1.0",
   "main": "./dist/src/index.js",
   "license": "MIT",
   "files": [
@@ -31,5 +31,16 @@
     "@nomicfoundation/hardhat-toolbox": "^1.0.2",
     "@nomiclabs/hardhat-ethers": "^2.0.0",
     "hardhat": "^2.17.0"
-  }
+  },
+  "description": "methods for processing UserOperations",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/icetea-labs/bundler.git"
+  },
+  "author": "",
+  "types": "./dist/src/index.d.ts",
+  "bugs": {
+    "url": "https://github.com/icetea-labs/bundler/issues"
+  },
+  "homepage": "https://github.com/icetea-labs/bundler#readme"
 }

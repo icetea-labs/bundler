@@ -11,18 +11,17 @@ import {
 import { parseEther, hexZeroPad, hexDataSlice, formatEther } from 'ethers/lib/utils'
 import { EntryPoint__factory, EntryPointSimulations__factory } from '@account-abstraction/utils/dist/src/types'
 import EntryPointSimulationsJson from '@account-abstraction/contracts/artifacts/EntryPointSimulations.json'
-import { IEntryPoint__factory, SimpleAccount__factory } from '../types'
+import { IEntryPoint__factory } from '../types'
 
 // const MNEMONIC = 'test test test test test test test test test test test junk'
 const MNEMONIC = 'skate eight behind action easy maximum rigid cycle surround solar warm world'
 const entryPointAddress = '0x3bFc49341Aae93e30F6e2BE5a7Fa371cEbd5bea4'
 const rpcUrl = 'https://rpc.testnet.conla.com'
-const bundlerUrl = 'https://aa-bundler.conla.com/rpc'
+const bundlerUrl = 'http://localhost:3030'
 const provider = new JsonRpcProvider(rpcUrl)
 const token = '0x5aA74b97C775539256e0C08875c4F6B2109af19E' // Address of the ERC-20 token
 const beneficiary = "0xEE35dA6bA29cc1A60d0d9042fa8c88CbEA6d12c0"
 const paymaster = "0x26E68f18CE130B8d4A0A6f5A2e628e89d0b51FC6"
-const bundlerBackendUrl = "http://localhost:3030"
 
 export interface ValidationData {
   aggregator: string
@@ -31,9 +30,9 @@ export interface ValidationData {
 }
 
 async function main () {
-  const paymasterAPI = new PaymasterAPI(bundlerBackendUrl)
+  const paymasterAPI = new PaymasterAPI(bundlerUrl)
   const owner0 = ethers.Wallet.fromMnemonic(MNEMONIC, "m/44'/60'/0'/0/0").connect(provider)
-  const owner = ethers.Wallet.fromMnemonic(MNEMONIC, "m/44'/60'/0'/0/3").connect(provider)
+  const owner = ethers.Wallet.fromMnemonic(MNEMONIC, "m/44'/60'/0'/0/33333").connect(provider)
 
   // console.log("wallet", owner.address)
   // await owner0.sendTransaction({ to: owner.address, value: parseEther('15') })
@@ -46,20 +45,16 @@ async function main () {
 
   // await entryPoint.depositTo(paymaster, { value: parseEther('2') })
   // await entryPoint.depositTo(beneficiary, { value: parseEther('2') })
-  // console.log("paymaster balance before", formatEther(await entryPoint.balanceOf(paymaster)))
-  // const paymasterBalanceBefore = await entryPoint.balanceOf(paymaster)
+  const paymasterBalanceBefore = await entryPoint.balanceOf(paymaster)
+  console.log("paymaster balance before", formatEther(paymasterBalanceBefore))
   // console.log("beneficiary balance before", formatEther(await provid  er.getBalance(beneficiary)))
   
   const detDeployer = new DeterministicDeployer(provider)
   const factoryAddress = await detDeployer.deterministicDeploy(new SimpleAccountFactory__factory(), 0, [entryPointAddress])
   const accountFactory = new SimpleAccountFactory__factory(owner).attach(factoryAddress)
-  // await (await accountFactory).createAccount(owner.address, 0)
+  const accountAddress = await accountFactory.getAddress(owner.address, 0)
+  await owner0.sendTransaction({ to: accountAddress, value: parseEther('2') }) // fund account contract
 
-
-  // const accountFactory = _factory ?? await new SimpleAccountFactory__factory(ethersSigner).deploy(entryPoint)
-  // const implementation = await accountFactory.accountImplementation()
-  // await accountFactory.createAccount(accountOwner, 0)
-  // const accountAddress = await accountFactory.getAddress(accountOwner, 0)
   // const proxy = SimpleAccount__factory.connect(accountAddress, ethersSigner)
   // return {
   //   implementation,
@@ -85,9 +80,8 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
     owner: owner,
     factoryAddress: factoryAddress,
     paymasterAPI: paymasterAPI,
-    bundlerUrl: bundlerBackendUrl,
+    bundlerUrl: bundlerUrl,
   })
-
   const gasPrice = await provider.getGasPrice()
   const value = parseEther('0.1')
 
@@ -99,9 +93,11 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
     maxPriorityFeePerGas: gasPrice,
   })
 
+  console.log("oppppppp", op)
+
   // const packeUserOp = await packUserOp(op)
   // console.log("packeUserOp",packeUserOp)
-  const tx = await accountAPI.sendHandlerOps([op])
+  const tx = await accountAPI.sendHandlerOps([op], false)
   console.log("tx hash: ", tx)
   console.log('--- COMPLETE SENDING NATIVE TOKEN ---')
 }
@@ -113,7 +109,7 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
 //   const amount = ethers.utils.parseUnits(value)
 //   const dest = ethers.Wallet.createRandom()
 
-//   const approve = erc20.interface.encodeFunctionData('approve', [dest.address, amount])
+  // const approve = erc20.interface.encodeFunctionData('approve', [dest.address, amount])
 //   const transfer = erc20.interface.encodeFunctionData('transfer', [dest.address, amount])
 
 //   const accountAPI = new SimpleAccountAPI({
@@ -143,8 +139,8 @@ async function sendNative( owner: ethers.Wallet, factoryAddress: string, paymast
 //   })
 
 //   const chainId = await provider.getNetwork().then(net => net.chainId)
-//   const client = new HttpRpcClient(bundlerUrl, entryPointAddress, chainId)
-//   const userOpHash = await client.sendUserOpToBundler(op)
+  // const client = new HttpRpcClient(bundlerUrl, entryPointAddress, chainId)
+  // const userOpHash = await client.sendUserOpToBundler(op)
 
 //   console.log('Waiting for transaction...')
 //   const transactionHash = await accountAPI.getUserOpReceipt(userOpHash)
